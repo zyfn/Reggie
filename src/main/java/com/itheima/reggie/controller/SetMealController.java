@@ -12,6 +12,8 @@ import com.itheima.reggie.service.SetMealService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -75,18 +77,21 @@ public class SetMealController {
     }
 
     @PutMapping
+    @CacheEvict(value = "setmealCache_",allEntries = true)
     public R<String> update(@RequestBody SetmealDto setmealDto){
         setMealService.updateWithDish(setmealDto);
         return R.success("修改套餐成功");
     }
 
     @DeleteMapping
+    @CacheEvict(value = "setmealCache_",allEntries = true)
     public R<String> delete(Long[] ids){
         setMealService.removeByIdWithDish(ids);
         return R.success("删除套餐成功");
     }
 
     @PostMapping("/status/{status}")
+    @CacheEvict(value = "setmealCache_",allEntries = true)
     public R<String> stop(@PathVariable int status,Long[] ids){
         List<Setmeal> setmealList = setMealService.listByIds(Arrays.asList(ids));
         setmealList = setmealList.stream().map((item) -> {
@@ -103,6 +108,7 @@ public class SetMealController {
      * @return
      */
     @GetMapping("/list")
+    @Cacheable(value = "setmealCache_",key = "#categoryId")
     public R<List<SetmealDto>> list(Long categoryId,Integer status){
         List<SetmealDto> setmealDtoList = setMealService.getListByCategoryId(categoryId,status);
         return R.success(setmealDtoList);
