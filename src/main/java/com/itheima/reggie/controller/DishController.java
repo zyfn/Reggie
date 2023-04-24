@@ -11,6 +11,7 @@ import com.itheima.reggie.service.DishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -29,6 +30,9 @@ public class DishController {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
     /**
      * 新增菜品
      * @param dishDto
@@ -116,6 +120,9 @@ public class DishController {
             return item;
         }).collect(Collectors.toList());
         dishService.updateBatchById(dishList);
+        //修改后,将其在redis缓存中清除
+        String key = "dish_"+dishList.get(0).getCategoryId();
+        redisTemplate.delete(key);
         return R.success("启停成功");
     }
 
