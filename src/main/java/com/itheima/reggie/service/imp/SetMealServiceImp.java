@@ -13,6 +13,7 @@ import com.itheima.reggie.service.SetMealDishService;
 import com.itheima.reggie.service.SetMealService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
