@@ -2,6 +2,7 @@ package com.itheima.reggie.service.imp;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.itheima.reggie.common.R;
 import com.itheima.reggie.dto.DishDto;
 import com.itheima.reggie.entity.Dish;
 import com.itheima.reggie.entity.DishFlavor;
@@ -10,17 +11,21 @@ import com.itheima.reggie.service.DishFlavorService;
 import com.itheima.reggie.service.DishService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
 public class DishServiceImp extends ServiceImpl<DishMapper,Dish> implements DishService {
     @Autowired
     private DishFlavorService dishFlavorService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     //新增菜品，同时插入菜品对应的口味数据，需要操作两张表: dish、 dish_flavor
     @Transactional
@@ -35,6 +40,10 @@ public class DishServiceImp extends ServiceImpl<DishMapper,Dish> implements Dish
 
         //保存菜品口味数据到菜品口味表dish_flavor
         dishFlavorService.saveBatch(flavors);
+
+        //新增后,将其在redis缓存中清除
+        String key = "dish_"+dishDto.getCategoryId();
+        redisTemplate.delete(key);
     }
 
     //根据id查询菜品信息和对应口味信息
@@ -68,6 +77,10 @@ public class DishServiceImp extends ServiceImpl<DishMapper,Dish> implements Dish
         List<DishFlavor> flavors = dishDto.getFlavors();
         flavors = flavors.stream().map((item)->{item.setDishId(dishDto.getId());return item;}).collect(Collectors.toList());
         dishFlavorService.saveBatch(flavors);
+
+        //更新后,将其在redis缓存中清除
+        String key = "dish_"+dishDto.getCategoryId();
+        redisTemplate.delete(key);
     }
 
     /**
@@ -88,13 +101,25 @@ public class DishServiceImp extends ServiceImpl<DishMapper,Dish> implements Dish
 
     @Override
     public List<DishDto> getListByCategoryId(Long categoryId) {
+        List<DishDto> dishDtoList =null;
+
+        //判断redis缓存中是否存在菜品列表
+        String key ="dish_"+categoryId;
+        dishDtoList = (List<DishDto>) redisTemplate.opsForValue().get(key);
+
+        //如存在则返回
+        if(dishDtoList!=null)
+            return dishDtoList;
+
+        //redis中不存在
         //获得菜品列表
         LambdaQueryWrapper<Dish> dishLambdaQueryWrapper = new LambdaQueryWrapper<>();
         dishLambdaQueryWrapper.eq(Dish::getCategoryId,categoryId);
+        dishLambdaQueryWrapper.eq(Dish::getStatus,1);
         List<Dish> list = this.list(dishLambdaQueryWrapper);
 
         //遍历，获得菜品id，并通过id查找菜品口味列表
-        List<DishDto> dishDtoList=list.stream().map((item)->{
+        dishDtoList=list.stream().map((item)->{
             // 获得菜品id
             Long dishId = item.getId();
 
@@ -111,6 +136,9 @@ public class DishServiceImp extends ServiceImpl<DishMapper,Dish> implements Dish
             dishDto.setFlavors(dishFlavorList);
             return dishDto;
         }).collect(Collectors.toList());
+
+        //查询后存入redis,缓存时间为60分
+        redisTemplate.opsForValue().set(key,dishDtoList,60, TimeUnit.MINUTES);
 
         return dishDtoList;
     }
