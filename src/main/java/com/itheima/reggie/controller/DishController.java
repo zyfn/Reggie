@@ -120,6 +120,9 @@ public class DishController {
             return item;
         }).collect(Collectors.toList());
         dishService.updateBatchById(dishList);
+        //修改后,将其在redis缓存中清除
+        String key = "dish_"+dishList.get(0).getCategoryId();
+        redisTemplate.delete(key);
         return R.success("启停成功");
     }
 
